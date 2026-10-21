@@ -91,7 +91,8 @@ function filtered(){return db.filter(r=>(!fs||(fs==='w'?!r.file:fs==='d'?r.file:
 function tools(){const o=[['w','Menunggu Job Sheet'],['d','Job Sheet Selesai']];if(role()!=='ops')o.push(['deal','Deal'],['lost','Tidak deal']);
  return `<div class="tools"><input id="q" type="search" placeholder="Cari RFQ, perusahaan, POL/POD" value="${esc(q)}" aria-label="Cari"><select id="fs" aria-label="Filter status"><option value="">Semua status</option>${o.map(([k,v])=>`<option value="${k}" ${fs===k?'selected':''}>${v}</option>`).join('')}</select></div>`}
 function bindTools(){const a=$('#q'),b=$('#fs');if(!a)return;a.oninput=e=>{q=e.target.value;const p=e.target.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};b.onchange=e=>{fs=e.target.value;render()}}
-const dl=r=>r.file?`<button class="btn sm" data-dl="${r.id}">Unduh job sheet</button>`:'';
+const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),dlCache={};
+const dl=r=>r.file?`<button class="btn sm" data-dl="${r.id}">${dlCache[r.id]?'Simpan file':'Unduh job sheet'}</button>`:'';
 const TH=l=>`<table><thead><tr>${l.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
 const opts=a=>a.map(x=>`<option>${x}</option>`).join('');
 
@@ -146,8 +147,15 @@ function render(){
    toast('Job sheet terunggah. Sales bisa mengunduhnya.');await load();render()}catch(err){toast(err.message)}};
   rd.readAsDataURL(file)});
  document.querySelectorAll('[data-dl]').forEach(b=>b.onclick=async()=>{const r=db.find(x=>x.id===b.dataset.dl);
-  try{const j=await(await api('rfqs/'+r.id+'/file')).json(),bin=atob(j.data),u=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
-   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([u],{type:j.mime}));a.download=r.file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}catch(err){toast(err.message)}});
+  const save=async f=>{
+   if(IOS&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]});delete dlCache[r.id];render();return true}catch(e){if(e.name==='AbortError')return true;return false}}
+   const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return true};
+  try{let f=dlCache[r.id];
+   if(f){await save(f);return}
+   const j=await(await api('rfqs/'+r.id+'/file')).json(),bin=atob(j.data),u=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
+   f=new File([u],r.file.name,{type:j.mime});
+   if(!(await save(f))){dlCache[r.id]=f;toast('File siap. Tekan "Simpan file" lalu pilih Simpan ke Berkas.');render()}
+  }catch(err){toast(err.message)}});
  const c=$('#csv');if(c)c.onclick=()=>{const h=['RFQ','Perusahaan','POL','POD','Moda','Layanan','Barang','Status Job Sheet','Keputusan Customer','File Job Sheet','Dibuat'];
   const l=[h,...filtered().map(r=>[r.rfq,r.company,r.pol,r.pod,r.moda,r.term,r.desc,r.file?'Job Sheet Selesai':'Menunggu Job Sheet',r.outcome==='deal'?'Deal':r.outcome==='lost'?'Tidak deal':'',r.file?r.file.name:'',new Date(r.created).toISOString()])].map(a=>a.map(v=>`"${String(v).replace(/"/g,'""').replace(/^([=+\-@])/,"'$1")}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l],{type:'text/csv'}));a.download='rfq-monitoring.csv';a.click()};
