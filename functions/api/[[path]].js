@@ -53,11 +53,14 @@ async function safeEqual(a, b) {
 // ---------- util ----------
 const clean = (v, max) => String(v ?? '').trim().slice(0, max);
 
-const rowOut = (r) => ({
-  id: r.id, rfq: r.rfq, company: r.company, moda: r.moda, term: r.term,
-  pol: r.pol, pod: r.pod, desc: r.description, outcome: r.outcome,
-  created: r.created, costAt: r.cost_at,
+const rowOut = (r, role) => ({
+  id: r.id, rfq: r.rfq, company: r.company, moda: r.moda, term: r.term, pol: r.pol, pod: r.pod,
+  desc: r.description, outcome: r.outcome, created: r.created, costAt: r.cost_at,
   file: r.file_name ? { name: r.file_name } : null,
+  salesName: r.sales_name, opsName: r.ops_name, takenAt: r.taken_at, quoteAt: r.quote_at,
+  decidedAt: r.decided_at, lostReason: r.lost_reason, waiting: !!r.waiting,
+  cost: role === 'ops' ? null : r.cost, revenue: role === 'ops' ? null : r.revenue, // Operation tidak melihat keuangan
+  salesFile: role !== 'ops' && r.sales_file_name ? { name: r.sales_file_name } : null,
 });
 
 // ---------- handler ----------
@@ -89,7 +92,7 @@ export async function onRequest({ request, env, params }) {
   // GET /api/rfqs
   if (path.length === 1 && method === 'GET') {
     const { results } = await env.DB.prepare('SELECT * FROM rfqs ORDER BY created DESC').all();
-    return json(results.map(rowOut));
+    return json(results.map((r) => rowOut(r, role)));
   }
 
   // POST /api/rfqs  (Sales)
@@ -97,16 +100,16 @@ export async function onRequest({ request, env, params }) {
     if (role !== 'sales') return fail('Hanya Sales yang bisa mengirim RFQ.', 403);
     const b = await request.json().catch(() => ({}));
     const d = {
-      rfq: clean(b.rfq, 60), company: clean(b.company, 120), moda: clean(b.moda, 30),
-      term: clean(b.term, 30), pol: clean(b.pol, 80), pod: clean(b.pod, 80), desc: clean(b.desc, 2000),
+      rfq: clean(b.rfq, 60), company: clean(b.company, 120), moda: clean(b.moda, 30), term: clean(b.term, 30),
+      pol: clean(b.pol, 80), pod: clean(b.pod, 80), desc: clean(b.desc, 2000), sales: clean(b.salesName, 60),
     };
-    if (Object.values(d).some((v) => !v)) return fail('Semua kolom wajib diisi.');
+    if (Object.values(d).some((v) => !v)) return fail('Semua kolom wajib diisi (termasuk nama Sales).');
     if (!MODA.includes(d.moda) || !TERM.includes(d.term)) return fail('Moda/layanan tidak valid.');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     try {
       await env.DB.prepare(
-        'INSERT INTO rfqs (id,rfq,company,moda,term,pol,pod,description,created) VALUES (?,?,?,?,?,?,?,?,?)'
-      ).bind(id, d.rfq, d.company, d.moda, d.term, d.pol, d.pod, d.desc, Date.now()).run();
+        'INSERT INTO rfqs (id,rfq,company,moda,term,pol,pod,description,created,sales_name) VALUES (?,?,?,?,?,?,?,?,?,?)'
+      ).bind(id, d.rfq, d.company, d.moda, d.term, d.pol, d.pod, d.desc, Date.now(), d.sales).run();
     } catch (e) {
       if (String(e).includes('UNIQUE')) return fail('Nomor RFQ sudah dipakai.', 409);
       throw e;
@@ -118,13 +121,65 @@ export async function onRequest({ request, env, params }) {
   const exists = id && (await env.DB.prepare('SELECT id FROM rfqs WHERE id=?').bind(id).first());
   if (!exists) return fail('RFQ tidak ditemukan.', 404);
 
-  // PATCH /api/rfqs/:id  -> keputusan customer (Sales)
+  // PATCH /api/rfqs/:id  { action: take | waiting | quote | deal | lost | undo }
   if (path.length === 2 && method === 'PATCH') {
-    if (role !== 'sales') return fail('Hanya Sales yang bisa mengubah keputusan.', 403);
     const b = await request.json().catch(() => ({}));
-    const outcome = b.outcome === 'deal' || b.outcome === 'lost' ? b.outcome : null;
-    await env.DB.prepare('UPDATE rfqs SET outcome=? WHERE id=?').bind(outcome, id).run();
-    return json({ ok: true, outcome });
+    const now = Date.now(), A = b.action, q = (sql, ...v) => env.DB.prepare(sql).bind(...v, id);
+    let st;
+    if (A === 'take' && role === 'ops') {
+      const n = clean(b.name, 60); if (!n) return fail('Nama PIC wajib diisi.');
+      st = q('UPDATE rfqs SET ops_name=?, taken_at=COALESCE(taken_at,?), waiting=0 WHERE id=?', n, now);
+    } else if (A === 'waiting' && role !== 'pc') st = q('UPDATE rfqs SET waiting=? WHERE id=?', b.on ? 1 : 0);
+    else if (A === 'quote' && role === 'sales') st = q('UPDATE rfqs SET quote_at=COALESCE(quote_at,?) WHERE id=?', now);
+    else if (A === 'deal' && role === 'sales') {
+      const c = Number(b.cost), v = Number(b.revenue);
+      if (b.cost === '' || b.revenue === '' || !(c >= 0) || !(v >= 0)) return fail('Cost dan revenue harus berupa angka.');
+      st = q("UPDATE rfqs SET outcome='deal', decided_at=COALESCE(decided_at,?), cost=?, revenue=?, lost_reason=NULL WHERE id=?", now, c, v);
+    } else if (A === 'lost' && role === 'sales') {
+      const r = clean(b.reason, 200); if (!r) return fail('Alasan tidak deal wajib diisi.');
+      st = q("UPDATE rfqs SET outcome='lost', decided_at=COALESCE(decided_at,?), lost_reason=? WHERE id=?", now, r);
+    } else if (A === 'undo' && role === 'sales') st = q('UPDATE rfqs SET outcome=NULL, decided_at=NULL, lost_reason=NULL WHERE id=?');
+    else return fail('Aksi tidak diizinkan untuk unit Anda.', 403);
+    await st.run();
+    return json({ ok: true });
+  }
+
+  // Catatan Operation <-> Sales
+  if (path[2] === 'notes') {
+    if (method === 'GET') {
+      const { results } = await env.DB.prepare('SELECT author,role,text,at FROM notes WHERE rfq_id=? ORDER BY at').bind(id).all();
+      return json(results);
+    }
+    if (method === 'POST' && role !== 'pc') {
+      const b = await request.json().catch(() => ({}));
+      const text = clean(b.text, 1000), author = clean(b.author, 60);
+      if (!text || !author) return fail('Nama dan isi catatan wajib diisi.');
+      const ops = [env.DB.prepare('INSERT INTO notes (rfq_id,author,role,text,at) VALUES (?,?,?,?,?)').bind(id, author, role, text, Date.now())];
+      if (role === 'ops' && b.ask) ops.push(env.DB.prepare('UPDATE rfqs SET waiting=1 WHERE id=?').bind(id));
+      if (role === 'sales') ops.push(env.DB.prepare('UPDATE rfqs SET waiting=0 WHERE id=?').bind(id));
+      await env.DB.batch(ops);
+      return json({ ok: true }, 201);
+    }
+  }
+
+  // Job sheet sales (diunggah Sales, dilihat Sales & Project Control)
+  if (path[2] === 'salesfile' && role !== 'ops') {
+    if (method === 'PUT') {
+      if (role !== 'sales') return fail('Hanya Sales yang bisa upload job sheet sales.', 403);
+      const b = await request.json().catch(() => null), name = clean(b && b.name, 200);
+      if (!b || typeof b.data !== 'string' || !b.data) return fail('File kosong.');
+      if (!/\.(pdf|xlsx?|xlsm)$/i.test(name)) return fail('Format harus PDF atau Excel.');
+      if (b.data.length > MAX_B64) return fail('Ukuran file maksimal 1,4 MB.', 413);
+      await env.DB.batch([
+        env.DB.prepare('INSERT OR REPLACE INTO sales_files (rfq_id,mime,data) VALUES (?,?,?)').bind(id, clean(b.mime, 100) || 'application/octet-stream', b.data),
+        env.DB.prepare('UPDATE rfqs SET sales_file_name=? WHERE id=?').bind(name, id),
+      ]);
+      return json({ ok: true });
+    }
+    if (method === 'GET') {
+      const f = await env.DB.prepare('SELECT mime,data FROM sales_files WHERE rfq_id=?').bind(id).first();
+      return f ? json(f) : fail('Job sheet sales belum ada.', 404);
+    }
   }
 
   // PUT /api/rfqs/:id/file  -> upload job sheet (Operation)
