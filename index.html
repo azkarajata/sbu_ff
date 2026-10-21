@@ -54,114 +54,145 @@ td small{color:var(--gray)}
 .nav.on{cursor:default}.btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
 @media(max-width:820px){body{flex-direction:column}aside{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px}aside img{width:130px;margin:0 12px 0 0}.nav small,.note{display:none}main{padding:18px 14px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.tabb{font:inherit;font-size:13px;font-weight:600;padding:7px 12px;border:1px solid var(--line);border-radius:99px;background:#fff;color:var(--gray);cursor:pointer}.tabb b{background:var(--gray-l);border-radius:99px;padding:1px 7px;margin-left:4px}.tabb.on{background:var(--blue);color:#fff;border-color:var(--blue)}.tabb.on b{background:rgba(255,255,255,.25)}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px}.g2 .panel{margin-bottom:0}.g2+.g2,.g2+.panel{margin-top:20px}canvas{max-height:260px}
+dialog{border:0;border-radius:12px;padding:22px;width:min(760px,94vw);max-height:90vh;box-shadow:0 20px 60px #0004}dialog::backdrop{background:#0006}.dh{display:flex;justify-content:space-between;gap:10px;align-items:center}.dh h2{margin:0;font-size:17px;color:var(--navy)}
+.inl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}.inl input,.inl select{min-width:120px}.two{display:block}.notes{max-height:200px;overflow:auto;margin-bottom:8px}.nt{margin:6px 0;padding:8px 10px;border-radius:8px;background:var(--gray-l)}.nt.ops{background:var(--blue-l)}.nt small{color:var(--gray)}.att{padding:8px 0;border-bottom:1px solid var(--line);margin:0}h3{font-size:14px;color:var(--navy);margin:14px 0 6px}
+@media(max-width:820px){.g2{grid-template-columns:1fr}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 <aside id="side"></aside>
 <main id="app"></main>
+<dialog id="dlg"></dialog>
+<datalist id="nl"></datalist>
 <div id="toast" role="status"></div>
 <script>
-const MAX=1.4*1024*1024;
-const USERS={sales:{name:'Tim Sales',role:'sales',desc:'Kirim RFQ & unduh job sheet'},operation:{name:'Tim Operation',role:'ops',desc:'Upload job sheet cost'},projectcontrol:{name:'Tim Project Control',role:'pc',desc:'Monitoring semua RFQ'}};
-const MODA=['Air Freight','Sea Freight','Trucking'],TERM=['Door to Door','Door to Port','Port to Door','Port to Port'];
-let db=[],user=sessionStorage.getItem('ias_user'),token=sessionStorage.getItem('ias_token'),q='',fs='';
-const $=s=>document.querySelector(s);
+const MAX=1.4*1024*1024,MODA=['Air Freight','Sea Freight','Trucking'],TERM=['Door to Door','Door to Port','Port to Door','Port to Port'];
+const USERS={sales:{name:'Tim Sales',role:'sales',desc:'RFQ, quotation & hasil deal'},operation:{name:'Tim Operation',role:'ops',desc:'Kerjakan job sheet cost'},projectcontrol:{name:'Tim Project Control',role:'pc',desc:'Analisis & monitoring'}};
+let db=[],user=sessionStorage.getItem('ias_user'),token=sessionStorage.getItem('ias_token'),q='',tab='all',per='ytd',charts=[];
+const $=s=>document.querySelector(s),role=()=>USERS[user].role,now=()=>Date.now();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=t=>new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-async function api(path,o={}){const h={...(o.headers||{})};if(token)h.Authorization='Bearer '+token;let body=o.body;
- if(o.json!==undefined){h['Content-Type']='application/json';body=JSON.stringify(o.json)}
+const fmt=t=>t?new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jakarta'}):'-';
+const IDR=n=>n==null?'-':'Rp '+Math.round(n).toLocaleString('id-ID');
+const nm=s=>s.trim().replace(/\s+/g,' ').toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase());
+const names=()=>{try{return JSON.parse(localStorage.getItem('ias_names')||'[]')}catch(e){return[]}};
+const myName=()=>names()[0]||'';
+function remember(v){try{localStorage.setItem('ias_names',JSON.stringify([v,...names().filter(x=>x!==v)].slice(0,30)))}catch(e){}}
+const mkey=t=>new Date(t).toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'}).slice(0,7);
+const dur=(a,b)=>{const m=Math.max(0,(b-a)/6e4|0),d=m/1440|0,h=(m%1440)/60|0;return d?d+' hr '+h+' jam':h?h+' jam':m+' mnt'};
+async function api(path,o={}){const h={...(o.headers||{})};if(token)h.Authorization='Bearer '+token;let body;if(o.json!==undefined){h['Content-Type']='application/json';body=JSON.stringify(o.json)}
  let r;try{r=await fetch('/api/'+path,{method:o.method||'GET',headers:h,body})}catch(e){throw new Error('Tidak bisa terhubung ke server.')}
- if(!r.ok){let m='Terjadi kesalahan ('+r.status+').';try{m=(await r.json()).error||m}catch(e){}
-  if(r.status===401&&token){logout();}throw new Error(m)}return r}
-async function load(){try{db=await(await api('rfqs')).json()}catch(e){toast(e.message)}}
-function logout(){sessionStorage.removeItem('ias_user');sessionStorage.removeItem('ias_token');user=null;token=null;db=[];render()}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
-const role=()=>USERS[user].role;
-const jsTag=r=>r.file?'<span class="tag s2">Job Sheet Selesai</span>':'<span class="tag s1">Menunggu Job Sheet</span>';
-const ocTag=r=>r.outcome==='deal'?' <span class="tag s3">Deal</span>':r.outcome==='lost'?' <span class="tag s4">Tidak deal</span>':'';
-const rfqCell=r=>`<b>${esc(r.rfq)}</b><br><small>${fmt(r.created)}</small>`;
-const routeCell=r=>`${esc(r.pol)} → ${esc(r.pod)}`;
-const modaCell=r=>`${esc(r.moda)}<br><small>${esc(r.term)}</small>`;
-const head=(t,s)=>`<h1>${t}</h1><p class="sub">${s}</p>`;
-function kpis(){const c=f=>db.filter(f).length,o=role()!=='ops';
- const k=[['Total RFQ',db.length],['Menunggu Job Sheet',c(r=>!r.file)],['Job Sheet Selesai',c(r=>r.file)]];
- if(o)k.push(['Deal',c(r=>r.outcome==='deal')],['Tidak deal',c(r=>r.outcome==='lost')]);
- return `<div class="kpis">${k.map(([l,n])=>`<div class="kpi"><span>${l}</span><strong>${n}</strong></div>`).join('')}</div>`}
-function filtered(){return db.filter(r=>(!fs||(fs==='w'?!r.file:fs==='d'?r.file:r.outcome===fs))&&(!q||[r.rfq,r.company,r.pol,r.pod,r.desc,r.moda,r.term].join(' ').toLowerCase().includes(q.toLowerCase())))}
-function tools(){const o=[['w','Menunggu Job Sheet'],['d','Job Sheet Selesai']];if(role()!=='ops')o.push(['deal','Deal'],['lost','Tidak deal']);
- return `<div class="tools"><input id="q" type="search" placeholder="Cari RFQ, perusahaan, POL/POD" value="${esc(q)}" aria-label="Cari"><select id="fs" aria-label="Filter status"><option value="">Semua status</option>${o.map(([k,v])=>`<option value="${k}" ${fs===k?'selected':''}>${v}</option>`).join('')}</select></div>`}
-function bindTools(){const a=$('#q'),b=$('#fs');if(!a)return;a.oninput=e=>{q=e.target.value;const p=e.target.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};b.onchange=e=>{fs=e.target.value;render()}}
-const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),dlCache={};
-const dl=r=>r.file?`<button class="btn sm" data-dl="${r.id}">${dlCache[r.id]?'Simpan file':'Unduh job sheet'}</button>`:'';
-const TH=l=>`<table><thead><tr>${l.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
-const opts=a=>a.map(x=>`<option>${x}</option>`).join('');
+ if(!r.ok){let m='Terjadi kesalahan ('+r.status+').';try{m=(await r.json()).error||m}catch(e){}if(r.status===401&&token)logout();throw new Error(m)}return r}
+const load=async()=>{try{db=await(await api('rfqs')).json()}catch(e){toast(e.message)}};
+function logout(){sessionStorage.clear();user=token=null;db=[];render()}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800)}
+const act=async(id,json,msg)=>{try{await api('rfqs/'+id,{method:'PATCH',json});toast(msg||'Tersimpan.');await load();render();if($('#dlg').open)openRfq(id)}catch(e){toast(e.message)}};
 
-function sales(){
- const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${ocTag(r)}${r.file?`<br><small>Job sheet: ${fmt(r.costAt)}</small>`:''}</td><td><div class="act">${dl(r)}${r.file?`<button class="btn sec sm ${r.outcome==='deal'?'on':''}" data-a="deal" data-id="${r.id}">Deal</button><button class="btn sec sm ${r.outcome==='lost'?'on':''}" data-a="lost" data-id="${r.id}">Tidak deal</button>`:''}</div></td></tr>`).join('');
- return head('Dashboard Sales','Kirim permintaan cost ke Operation, lalu unduh job sheet yang sudah dihitung.')+kpis()+
- `<div class="panel"><h2>Kirim RFQ baru ke Operation</h2><form id="f">
- <label>Nomor RFQ<input name="rfq" required placeholder="mis. RFQ-2026-001"></label>
- <label>Nama perusahaan<input name="company" required></label>
- <label>Moda<select name="moda" required><option value="">Pilih moda</option>${opts(MODA)}</select></label>
- <label>Layanan pengiriman<select name="term" required><option value="">Pilih layanan</option>${opts(TERM)}</select></label>
- <label>POL (Port of Loading)<input name="pol" required placeholder="mis. Jakarta (CGK)"></label>
- <label>POD (Port of Discharge)<input name="pod" required placeholder="mis. Singapore (SIN)"></label>
- <label class="wide">Deskripsi barang<textarea name="desc" required placeholder="Jenis barang, berat, volume, kemasan, incoterm"></textarea></label>
- <div class="wide"><button class="btn" type="submit">Kirim ke Operation</button></div></form></div>
- <div class="panel"><h2>Daftar RFQ</h2>${tools()}<div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Aksi'])+rows+'</tbody></table>':'<div class="empty">Belum ada RFQ. Isi formulir di atas untuk mengirim permintaan cost pertama.</div>'}</div></div>`}
+// ---- tahap & durasi ----
+function stage(r){
+ if(r.outcome==='lost')return{t:'Tidak deal',c:'s4',from:r.created,to:r.decidedAt,l:'Total proses'};
+ if(r.outcome==='deal')return r.revenue==null&&role()!=='ops'?{t:'Deal – isi data keuangan',c:'s1',need:'sales',from:r.decidedAt,to:now(),l:'Menunggu data'}:{t:'Deal',c:'s3',from:r.created,to:r.decidedAt,l:'Total proses'};
+ if(r.quoteAt)return{t:'Quotation terkirim',c:'s2',from:r.quoteAt,to:now(),l:'Menunggu keputusan'};
+ if(r.file)return{t:'Job sheet siap',c:'s2',need:'sales',from:r.costAt,to:now(),l:'Menunggu quotation'};
+ if(r.waiting)return{t:'Menunggu info customer',c:'s1',need:'sales',from:r.takenAt||r.created,to:now(),l:'Menunggu customer'};
+ if(r.takenAt)return{t:'Dikerjakan'+(r.opsName?' · '+esc(r.opsName):''),c:'s2',from:r.takenAt,to:now(),l:'Proses job sheet'};
+ return{t:'Baru masuk',c:'s1',need:'ops',from:r.created,to:now(),l:'Menunggu diambil'}}
+const hrs=(s)=>(s.to-s.from)/36e5,open_=r=>!r.outcome;
+function durCell(r){const s=stage(r),h=hrs(s),c=r.outcome?'':h>48?'color:var(--bad)':h>24?'color:var(--warn)':'';return`<span style="${c};font-weight:600">${s.l}</span><br><small>${dur(s.from,s.to)}</small>`}
 
-function ops(){
- const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${r.file?`<br><small>${esc(r.file.name)}</small>`:''}</td><td><div class="act"><label class="btn sm ${r.file?'sec':''}" style="cursor:pointer;flex-direction:row">${r.file?'Ganti file':'Upload job sheet'}<input type="file" hidden accept=".pdf,.xls,.xlsx,.xlsm" data-up="${r.id}"></label>${dl(r)}</div></td></tr>`).join('');
- return head('Dashboard Operation','Pilih RFQ dari Sales, hitung cost (HPP), lalu upload job sheet dalam format PDF atau Excel.')+kpis()+
- `<div class="panel"><h2>Permintaan cost dari Sales</h2>${tools()}<div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Aksi'])+rows+'</tbody></table>':'<div class="empty">Belum ada permintaan dari Sales.</div>'}</div></div>`}
+// ---- shell ----
+function shell(inner){$('#side').innerHTML=`<img src="ias_logo.png" alt="InJourney Aviation Services"><div class="me"><small>Masuk sebagai</small><b>${USERS[user].name}</b></div><button class="nav on"><b>${USERS[user].name.replace('Tim ','')}</b><small>${USERS[user].desc}</small></button><button class="btn sec sm" id="rl" style="margin-top:8px">Muat ulang data</button><button class="btn sec sm" id="out" style="margin-top:8px">Keluar</button><p class="note">Data tersimpan di database Cloudflare D1. Nama Sales/PIC diketik manual (akun per orang menyusul).</p>`;
+ $('#app').innerHTML=inner;$('#nl').innerHTML=names().map(n=>`<option value="${esc(n)}">`).join('');$('#out').onclick=logout;$('#rl').onclick=async()=>{await load();render();toast('Data dimuat ulang.')}}
+function render(){charts.forEach(c=>c.destroy());charts=[];
+ if(!user||!token){$('#side').innerHTML='';$('#app').innerHTML=`<div class="login"><img src="ias_logo.png" alt="InJourney"><h1>Dashboard Freight Forwarder</h1><form id="lf"><label>Username<input name="u" required autocomplete="username"></label><label>Password<input name="p" type="password" required autocomplete="current-password"></label><p class="err" id="err"></p><button class="btn">Masuk</button></form></div>`;
+  $('#lf').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));try{const r=await(await api('login',{method:'POST',json:{u:d.u.trim().toLowerCase(),p:d.p}})).json();user=r.user;token=r.token;sessionStorage.setItem('ias_user',user);sessionStorage.setItem('ias_token',token);await load();render()}catch(x){$('#err').textContent=x.message}};return}
+ ({sales:vSales,ops:vOps,pc:vPC})[role()]()}
 
-function pc(){
- const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${ocTag(r)}</td><td>${r.file?`${esc(r.file.name)}<br><small>${fmt(r.costAt)}</small>`:'<small>Belum ada</small>'}</td></tr>`).join('');
- return head('Dashboard Project Control','Pantau seluruh RFQ dari permintaan cost sampai keputusan customer.')+kpis()+
- `<div class="panel"><h2>Semua RFQ</h2>${tools()}<div class="tools"><button class="btn sec sm" id="csv">Ekspor CSV</button></div><div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Job sheet'])+rows+'</tbody></table>':'<div class="empty">Tidak ada data yang cocok.</div>'}</div></div>`}
+// ---- tabel bersama (Sales & Operation) ----
+const TABS={sales:[['all','Semua'],['ops','Dikerjakan Operation'],['ready','Job sheet siap'],['quote','Quotation terkirim'],['deal','Deal'],['lost','Tidak deal']],ops:[['all','Semua'],['new','Baru masuk'],['mine','Sedang dikerjakan'],['done','Selesai']]};
+const inTab=(r,t)=>({all:1,ops:open_(r)&&!r.file&&!r.quoteAt,ready:open_(r)&&r.file&&!r.quoteAt,quote:open_(r)&&r.quoteAt,deal:r.outcome==='deal',lost:r.outcome==='lost',new:!r.takenAt&&open_(r),mine:r.takenAt&&!r.file&&open_(r),done:!!r.file}[t]);
+function listView(title,sub,kpis,extraTop){
+ const r0=role(),need=r=>stage(r).need===r0&&open_(r)||(r0==='sales'&&r.outcome==='deal'&&r.revenue==null);
+ let rows=db.filter(r=>inTab(r,tab)&&(r.rfq+r.company+r.pod+r.pol+(r.salesName||'')+(r.opsName||'')).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>need(b)-need(a)||b.created-a.created);
+ const cnt=t=>db.filter(r=>inTab(r,t)).length;
+ shell(`<h1>${title}</h1><p class="sub">${sub}</p><div class="kpis">${kpis.map(k=>`<div class="kpi"><span>${k[0]}</span><strong>${k[1]}</strong></div>`).join('')}</div>${extraTop||''}
+ <div class="panel"><div class="tabs">${TABS[r0].map(t=>`<button class="tabb ${tab===t[0]?'on':''}" data-t="${t[0]}">${t[1]} <b>${cnt(t[0])}</b></button>`).join('')}</div>
+ <div class="tools"><input id="q" placeholder="Cari RFQ, customer, nama..." value="${esc(q)}"></div>
+ <div class="tw"><table><thead><tr><th>RFQ</th><th>Customer</th><th>Rute</th><th>Moda</th><th>Sales</th><th>PIC Operation</th><th>Tahap</th><th>Lama proses</th><th></th></tr></thead><tbody>${rows.map(r=>{const s=stage(r);return`<tr style="${need(r)?'box-shadow:inset 4px 0 var(--warn)':''}"><td><b>${esc(r.rfq)}</b><br><small>${fmt(r.created)}</small></td><td>${esc(r.company)}</td><td>${esc(r.pol)} → ${esc(r.pod)}</td><td>${esc(r.moda)}<br><small>${esc(r.term)}</small></td><td>${esc(r.salesName||'-')}</td><td>${esc(r.opsName||'-')}</td><td><span class="tag ${s.c}">${s.t}</span></td><td>${durCell(r)}</td><td><button class="btn ${need(r)?'':'sec'} sm" data-o="${r.id}">${need(r)?'Tindak lanjuti':'Buka'}</button></td></tr>`}).join('')||'<tr><td colspan="9" class="empty">Belum ada data.</td></tr>'}</tbody></table></div></div>`);
+ bindList()}
+function bindList(){document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});const i=$('#q');if(i)i.oninput=()=>{q=i.value;const p=i.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openRfq(b.dataset.o))}
 
-function loginView(){
- $('#side').style.display='none';
- $('#app').innerHTML=`<div class="login"><img src="ias_logo.png" alt="InJourney Aviation Services"><h1>Masuk ke dashboard</h1><form id="lf"><label>Username<input name="u" required autocomplete="username" autofocus></label><label>Password<input name="p" type="password" required autocomplete="current-password"></label><p class="err" id="err"></p><button class="btn" type="submit">Masuk</button></form><p class="hint">Username: sales, operation, atau projectcontrol.</p></div>`;
- $('#lf').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target)),u=d.u.trim().toLowerCase();
-  try{const r=await(await api('login',{method:'POST',json:{u,p:d.p}})).json();user=r.user;token=r.token;sessionStorage.setItem('ias_user',user);sessionStorage.setItem('ias_token',token);q='';fs='';await load();render()}catch(err){$('#err').textContent=err.message}}}
+// ---- Sales ----
+function vSales(){const dn=db.filter(r=>r.outcome==='deal'),ls=db.filter(r=>r.outcome==='lost'),wr=dn.length+ls.length?Math.round(dn.length/(dn.length+ls.length)*100)+'%':'-';
+ const nl=names().map(n=>`<option value="${esc(n)}">`).join('');
+ listView('Dashboard Sales','Kirim RFQ, kirim quotation, dan catat hasil deal.',[['RFQ aktif',db.filter(open_).length],['Perlu tindakan saya',db.filter(r=>stage(r).need==='sales').length],['Win rate',wr],['Total profit',IDR(dn.reduce((a,r)=>a+(r.revenue!=null?r.revenue-r.cost:0),0))]],
+ `<details class="panel"><summary style="cursor:pointer;font-weight:700;color:var(--navy)">+ RFQ baru</summary><form id="f" style="margin-top:14px"><label>Nama Sales<input name="salesName" list="nl" value="${esc(myName())}" required></label><label>Nomor RFQ<input name="rfq" required></label><label>Customer<input name="company" required></label><label>Moda<select name="moda">${MODA.map(m=>`<option>${m}</option>`).join('')}</select></label><label>Layanan<select name="term">${TERM.map(m=>`<option>${m}</option>`).join('')}</select></label><label>POL<input name="pol" required></label><label>POD<input name="pod" required></label><label class="wide">Deskripsi barang<textarea name="desc" required></textarea></label><div class="wide"><button class="btn">Kirim ke Operation</button></div></form></details>`);
+ $('#f').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));d.salesName=nm(d.salesName);try{await api('rfqs',{method:'POST',json:d});remember(d.salesName);toast('RFQ terkirim ke Operation.');await load();render()}catch(x){toast(x.message)}}}
+// ---- Operation ----
+function vOps(){const my=n=>db.filter(r=>r.opsName&&r.opsName===n&&r.file).length,done=db.filter(r=>r.file&&r.costAt&&mkey(r.costAt)===mkey(now())),av=done.filter(r=>r.takenAt);
+ listView('Dashboard Operation','Ambil RFQ, kerjakan job sheet cost, dan tanyakan dokumen ke Sales bila perlu.',[['Baru masuk',db.filter(r=>!r.takenAt&&open_(r)).length],['Sedang dikerjakan',db.filter(r=>r.takenAt&&!r.file&&open_(r)).length],['Selesai bulan ini',done.length],['Rata-rata pengerjaan',av.length?dur(0,av.reduce((a,r)=>a+r.costAt-r.takenAt,0)/av.length):'-']])}
 
-function render(){
- if(!user||!USERS[user]){user=null;return loginView()}
- const U=USERS[user],sd=$('#side');sd.style.display='';
- sd.innerHTML=`<img src="ias_logo.png" alt="InJourney Aviation Services"><div class="me"><small>Masuk sebagai</small><b>${U.name}</b></div><div class="nav on"><b>${U.name.replace('Tim ','')}</b><small>${U.desc}</small></div><button class="btn sec sm" id="rl" style="margin-top:8px">Muat ulang data</button><button class="btn sec sm" id="out" style="margin-top:8px">Keluar</button><p class="note">Data tersimpan di database Cloudflare D1 dan dipakai bersama semua unit.</p>`;
- $('#out').onclick=logout;
- $('#rl').onclick=async()=>{await load();render();toast('Data dimuat ulang.')};
- $('#app').innerHTML={sales,ops,pc}[U.role]();
- bindTools();
- const f=$('#f');if(f)f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));d.rfq=d.rfq.trim();
-  try{await api('rfqs',{method:'POST',json:d});toast('RFQ terkirim ke Operation.');await load();render()}catch(err){toast(err.message)}};
- document.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const r=db.find(x=>x.id===b.dataset.id),o=r.outcome===b.dataset.a?null:b.dataset.a;
-  try{await api('rfqs/'+r.id,{method:'PATCH',json:{outcome:o}});toast(o?'Keputusan customer disimpan.':'Keputusan customer dibatalkan.');await load();render()}catch(err){toast(err.message)}});
- document.querySelectorAll('[data-up]').forEach(i=>i.onchange=()=>{const file=i.files[0];if(!file)return;const id=i.dataset.up;
-  if(!/\.(pdf|xlsx?|xlsm)$/i.test(file.name))return toast('Format harus PDF atau Excel.');
-  if(file.size>MAX)return toast('Ukuran file maksimal 1,4 MB.');
-  toast('Mengunggah...');const rd=new FileReader();rd.onerror=()=>toast('Gagal membaca file.');
-  rd.onload=async()=>{try{const data=String(rd.result).split(',')[1]||'';
-   await api('rfqs/'+id+'/file',{method:'PUT',json:{name:file.name,mime:file.type||'application/octet-stream',data}});
-   toast('Job sheet terunggah. Sales bisa mengunduhnya.');await load();render()}catch(err){toast(err.message)}};
-  rd.readAsDataURL(file)});
- document.querySelectorAll('[data-dl]').forEach(b=>b.onclick=async()=>{const r=db.find(x=>x.id===b.dataset.dl);
-  const save=async f=>{
-   if(IOS&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]});delete dlCache[r.id];render();return true}catch(e){if(e.name==='AbortError')return true;return false}}
-   const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);return true};
-  try{let f=dlCache[r.id];
-   if(f){await save(f);return}
-   const j=await(await api('rfqs/'+r.id+'/file')).json(),bin=atob(j.data),u=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
-   f=new File([u],r.file.name,{type:j.mime});
-   if(!(await save(f))){dlCache[r.id]=f;toast('File siap. Tekan "Simpan file" lalu pilih Simpan ke Berkas.');render()}
-  }catch(err){toast(err.message)}});
- const c=$('#csv');if(c)c.onclick=()=>{const h=['RFQ','Perusahaan','POL','POD','Moda','Layanan','Barang','Status Job Sheet','Keputusan Customer','File Job Sheet','Dibuat'];
-  const l=[h,...filtered().map(r=>[r.rfq,r.company,r.pol,r.pod,r.moda,r.term,r.desc,r.file?'Job Sheet Selesai':'Menunggu Job Sheet',r.outcome==='deal'?'Deal':r.outcome==='lost'?'Tidak deal':'',r.file?r.file.name:'',new Date(r.created).toISOString()])].map(a=>a.map(v=>`"${String(v).replace(/"/g,'""').replace(/^([=+\-@])/,"'$1")}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l],{type:'text/csv'}));a.download='rfq-monitoring.csv';a.click()};
-}
+// ---- Dialog detail ----
+const fileBtn=(id,k,f)=>f?`<button class="btn sec sm" data-dlf="${id}|${k}|${esc(f.name)}">Unduh ${k==='file'?'job sheet cost':'job sheet sales'}: ${esc(f.name)}</button>`:'';
+async function openRfq(id){const r=db.find(x=>x.id===id),R=role(),s=stage(r);let notes=[];try{notes=await(await api('rfqs/'+id+'/notes')).json()}catch(e){}
+ const d=$('#dlg'),fin=R!=='ops'&&r.revenue!=null?`<p><b>Cost</b> ${IDR(r.cost)} · <b>Revenue</b> ${IDR(r.revenue)} · <b>Profit</b> <span style="color:${r.revenue-r.cost<0?'var(--bad)':'var(--ok)'}">${IDR(r.revenue-r.cost)} (${r.revenue?Math.round((r.revenue-r.cost)/r.revenue*100):0}%)</span></p>`:'';
+ let ac='';
+ if(R==='ops'){ac=(!r.takenAt?`<form id="take" class="inl"><input name="n" placeholder="Nama PIC" list="nl" value="${esc(myName())}" required><button class="btn sm">Ambil pengerjaan</button></form>`:'')+(r.takenAt||true?`<label class="btn sm ${r.file?'sec':''}" style="cursor:pointer">${r.file?'Ganti job sheet':'Upload job sheet cost (PDF/Excel)'}<input type="file" id="up" accept=".pdf,.xls,.xlsx,.xlsm" hidden></label>`:'')}
+ if(R==='sales'&&!r.outcome){ac=(r.file&&!r.quoteAt?`<button class="btn sm" id="qt">Quotation sudah dikirim ke customer</button>`:'')+(r.file?`<div class="two"><form id="dealf" class="inl"><b>Deal:</b><input name="cost" type="number" min="0" placeholder="Cost (Rp)" required><input name="revenue" type="number" min="0" placeholder="Revenue (Rp)" required><span id="pf" class="tag s3">Profit -</span><button class="btn sm">Simpan deal</button></form><form id="lostf" class="inl"><b>Tidak deal:</b><select name="reason"><option>Harga</option><option>Transit time</option><option>Customer batal</option><option>Lainnya</option></select><button class="btn sm sec">Simpan</button></form></div>`:'<p class="hint">Menunggu job sheet dari Operation.</p>')}
+ if(R==='sales'&&r.outcome)ac=`<label class="btn sm" style="cursor:pointer">${r.salesFile?'Ganti':'Upload'} job sheet sales<input type="file" id="ups" accept=".pdf,.xls,.xlsx,.xlsm" hidden></label> <button class="btn sec sm" id="undo">Batalkan keputusan</button>`+(r.outcome==='deal'?`<form id="dealf" class="inl"><b>Ubah keuangan:</b><input name="cost" type="number" min="0" value="${r.cost??''}" placeholder="Cost" required><input name="revenue" type="number" min="0" value="${r.revenue??''}" placeholder="Revenue" required><span id="pf" class="tag s3">Profit -</span><button class="btn sm">Simpan</button></form>`:'');
+ d.innerHTML=`<div class="dh"><h2>${esc(r.rfq)} · ${esc(r.company)}</h2><button class="btn sec sm" id="cl">Tutup</button></div><p><span class="tag ${s.c}">${s.t}</span> ${esc(r.pol)} → ${esc(r.pod)} · ${esc(r.moda)} / ${esc(r.term)}</p><p>${esc(r.desc)}</p>${fin}${r.lostReason?`<p><b>Alasan tidak deal:</b> ${esc(r.lostReason)}</p>`:''}
+ <p class="hint">Dikirim ${fmt(r.created)} (${esc(r.salesName||'-')}) · Diambil ${fmt(r.takenAt)} (${esc(r.opsName||'-')}) · Job sheet ${fmt(r.costAt)} · Quotation ${fmt(r.quoteAt)} · Keputusan ${fmt(r.decidedAt)}</p>
+ <div class="act">${fileBtn(id,'file',r.file)}${R!=='ops'?fileBtn(id,'salesfile',r.salesFile):''}</div><div style="margin:12px 0">${ac}</div>
+ <h3>Catatan Operation ↔ Sales</h3><div class="notes">${notes.map(n=>`<p class="nt ${n.role}"><b>${esc(n.author)}</b> <small>${n.role==='ops'?'Operation':'Sales'} · ${fmt(n.at)}</small><br>${esc(n.text)}</p>`).join('')||'<p class="hint">Belum ada catatan.</p>'}</div>
+ ${R!=='pc'?`<form id="nf" class="inl"><input name="a" placeholder="Nama Anda" list="nl" value="${esc(myName())}" required style="max-width:140px"><input name="t" placeholder="${R==='ops'?'Contoh: butuh packing list & MSDS dari customer':'Balasan untuk Operation'}" required style="flex:1">${R==='ops'?'<label style="flex-direction:row;align-items:center;gap:4px"><input type="checkbox" name="ask"> Tanya customer</label>':''}<button class="btn sm">Kirim</button></form>`:''}`;
+ d.showModal();$('#cl').onclick=()=>d.close();
+ document.querySelectorAll('[data-dlf]').forEach(b=>b.onclick=()=>download(...b.dataset.dlf.split('|')));
+ const F=(sel,fn)=>{const e=$(sel);if(e)e.onsubmit=async ev=>{ev.preventDefault();fn(Object.fromEntries(new FormData(e)))}};
+ F('#take',x=>{const n=nm(x.n);remember(n);act(id,{action:'take',name:n},'RFQ diambil. Sales melihat nama PIC Anda.')});
+ F('#nf',async x=>{const a=nm(x.a);remember(a);try{await api('rfqs/'+id+'/notes',{method:'POST',json:{author:a,text:x.t,ask:!!x.ask}});toast('Catatan terkirim.');await load();render();openRfq(id)}catch(e){toast(e.message)}});
+ F('#dealf',x=>act(id,{action:'deal',cost:x.cost,revenue:x.revenue},'Deal tersimpan.'));
+ F('#lostf',x=>act(id,{action:'lost',reason:x.reason},'Tersimpan sebagai tidak deal.'));
+ const df=$('#dealf');if(df){const u=()=>{const c=+df.cost.value,v=+df.revenue.value,p=$('#pf');p.textContent=df.cost.value&&df.revenue.value?'Profit '+IDR(v-c)+' ('+(v?Math.round((v-c)/v*100):0)+'%)':'Profit -';p.className='tag '+(v-c<0?'s4':'s3')};df.oninput=u;u()}
+ if($('#qt'))$('#qt').onclick=()=>act(id,{action:'quote'},'Quotation ditandai terkirim.');
+ if($('#undo'))$('#undo').onclick=()=>act(id,{action:'undo'},'Keputusan dibatalkan.');
+ if($('#up'))$('#up').onchange=e=>upload(id,'file',e.target.files[0]);
+ if($('#ups'))$('#ups').onchange=e=>upload(id,'salesfile',e.target.files[0])}
+function upload(id,k,f){if(!f)return;if(!/\.(pdf|xlsx?|xlsm)$/i.test(f.name))return toast('Format harus PDF atau Excel.');if(f.size>MAX)return toast('Ukuran file maksimal 1,4 MB.');toast('Mengunggah...');
+ const rd=new FileReader();rd.onload=async()=>{try{await api('rfqs/'+id+'/'+k,{method:'PUT',json:{name:f.name,mime:f.type||'application/octet-stream',data:String(rd.result).split(',')[1]||''}});toast('File terunggah.');await load();render();openRfq(id)}catch(e){toast(e.message)}};rd.readAsDataURL(f)}
+async function download(id,k,name){try{const j=await(await api('rfqs/'+id+'/'+k)).json(),bin=atob(j.data),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);const f=new File([u],name,{type:j.mime});
+ const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ if(ios&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]});return}catch(e){if(e.name==='AbortError')return}}
+ const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}catch(e){toast(e.message)}}
+
+// ---- Project Control ----
+function vPC(){const ms=[...new Set([...db.filter(r=>r.decidedAt).map(r=>mkey(r.decidedAt)),mkey(now())])].sort().reverse(),yr=mkey(now()).slice(0,4);
+ const inP=r=>r.decidedAt&&(per==='ytd'?mkey(r.decidedAt).startsWith(yr):mkey(r.decidedAt)===per),D=db.filter(r=>inP(r)&&r.outcome==='deal'),L=db.filter(r=>inP(r)&&r.outcome==='lost'),F=D.filter(r=>r.revenue!=null);
+ const sum=(a,f)=>a.reduce((x,r)=>x+f(r),0),rev=sum(F,r=>r.revenue),cost=sum(F,r=>r.cost),pr=rev-cost,wr=D.length+L.length?Math.round(D.length/(D.length+L.length)*100)+'%':'-';
+ const jt=db.filter(r=>inP(r)&&r.takenAt&&r.costAt),run=db.filter(open_);
+ const attn=db.filter(r=>open_(r)&&hrs(stage(r))>(r.quoteAt?168:48)).sort((a,b)=>hrs(stage(b))-hrs(stage(a)));
+ shell(`<h1>Dashboard Project Control</h1><p class="sub">Semua angka dihitung berdasarkan bulan keputusan (tanggal Deal/Tidak deal). Waktu mengikuti WIB.</p>
+ <div class="tools"><select id="per"><option value="ytd" ${per==='ytd'?'selected':''}>YTD Januari–${new Date().toLocaleString('id-ID',{month:'long'})} ${yr}</option>${ms.map(m=>`<option value="${m}" ${per===m?'selected':''}>${new Date(m+'-15').toLocaleString('id-ID',{month:'long',year:'numeric'})}</option>`).join('')}</select><button class="btn sec" id="csv">Ekspor CSV</button></div>
+ <div class="kpis"><div class="kpi"><span>Deal</span><strong>${D.length}</strong></div><div class="kpi"><span>Revenue</span><strong style="font-size:20px">${IDR(rev)}</strong></div><div class="kpi"><span>Cost</span><strong style="font-size:20px">${IDR(cost)}</strong></div><div class="kpi"><span>Profit${rev?' · '+Math.round(pr/rev*100)+'%':''}</span><strong style="font-size:20px;color:${pr<0?'var(--bad)':'var(--ok)'}">${IDR(pr)}</strong></div><div class="kpi"><span>Win rate</span><strong>${wr}</strong></div><div class="kpi"><span>Rata² job sheet</span><strong style="font-size:20px">${jt.length?dur(0,sum(jt,r=>r.costAt-r.takenAt)/jt.length):'-'}</strong></div><div class="kpi" style="border-left-color:var(--warn)"><span>Sedang berjalan (semua periode)</span><strong>${run.length}</strong></div></div>
+ <div class="g2"><div class="panel"><h2>Revenue, cost & profit per ${per==='ytd'?'bulan':'minggu'}</h2><canvas id="c1"></canvas></div><div class="panel"><h2>Deal vs tidak deal</h2><canvas id="c2"></canvas></div><div class="panel"><h2>Revenue & profit per Sales</h2><canvas id="c3"></canvas></div><div class="panel"><h2>Revenue per moda</h2><canvas id="c4"></canvas></div></div>
+ <div class="g2"><div class="panel"><h2>Top customer (revenue)</h2><table><thead><tr><th>Customer</th><th>Deal</th><th>Revenue</th><th>Profit</th></tr></thead><tbody>${Object.entries(F.reduce((o,r)=>{(o[r.company]=o[r.company]||{n:0,v:0,p:0});o[r.company].n++;o[r.company].v+=r.revenue;o[r.company].p+=r.revenue-r.cost;return o},{})).sort((a,b)=>b[1].v-a[1].v).slice(0,6).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.n}</td><td>${IDR(v.v)}</td><td>${IDR(v.p)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">Belum ada deal di periode ini.</td></tr>'}</tbody></table></div>
+ <div class="panel"><h2>Perlu perhatian</h2>${attn.map(r=>`<p class="att"><b>${esc(r.rfq)}</b> · ${esc(r.company)}<br><small>${stage(r).t} — ${stage(r).l.toLowerCase()} ${dur(stage(r).from,stage(r).to)}</small> <button class="btn sec sm" data-o="${r.id}">Buka</button></p>`).join('')||'<p class="hint">Tidak ada RFQ yang tertahan lama.</p>'}</div></div>
+ <div class="panel"><h2>Semua RFQ</h2><div class="tools"><input id="q" placeholder="Cari..." value="${esc(q)}"></div><div class="tw"><table><thead><tr><th>RFQ</th><th>Customer</th><th>Sales</th><th>Operation</th><th>Tahap</th><th>Revenue</th><th>Profit</th><th></th></tr></thead><tbody>${db.filter(r=>(r.rfq+r.company+(r.salesName||'')).toLowerCase().includes(q.toLowerCase())).map(r=>{const s=stage(r);return`<tr><td><b>${esc(r.rfq)}</b><br><small>${fmt(r.created)}</small></td><td>${esc(r.company)}</td><td>${esc(r.salesName||'-')}</td><td>${esc(r.opsName||'-')}</td><td><span class="tag ${s.c}">${s.t}</span></td><td>${IDR(r.revenue)}</td><td>${r.revenue!=null?IDR(r.revenue-r.cost):'-'}</td><td><button class="btn sec sm" data-o="${r.id}">Buka</button></td></tr>`}).join('')||'<tr><td colspan="8" class="empty">Belum ada data.</td></tr>'}</tbody></table></div></div>`);
+ bindList();$('#per').onchange=e=>{per=e.target.value;render()};
+ $('#csv').onclick=()=>{const h=['RFQ','Customer','POL','POD','Moda','Sales','Operation','Tahap','Dibuat','Keputusan','Cost','Revenue','Profit','Alasan tidak deal'],c=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const b=new Blob(['\ufeff'+[h,...db.map(r=>[r.rfq,r.company,r.pol,r.pod,r.moda,r.salesName,r.opsName,stage(r).t.replace(/ ·.*/,''),fmt(r.created),fmt(r.decidedAt),r.cost,r.revenue,r.revenue!=null?r.revenue-r.cost:'',r.lostReason])].map(a=>a.map(c).join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='rfq.csv';a.click()};
+ if(typeof Chart==='undefined')return;
+ const grp=(f)=>{const o={};F.forEach(r=>{const k=f(r);(o[k]=o[k]||{v:0,c:0})&&(o[k].v+=r.revenue,o[k].c+=r.cost)});return o};
+ const wk=r=>per==='ytd'?mkey(r.decidedAt):'Minggu '+Math.ceil(+new Date(r.decidedAt).toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'}).slice(8)/7);
+ const T=grp(wk),tk=Object.keys(T).sort(),mk=(id,type,labels,ds,o={})=>charts.push(new Chart($(id),{type,data:{labels,datasets:ds},options:{responsive:true,plugins:{legend:{display:ds.length>1||type==='doughnut'}},...o}}));
+ mk('#c1','bar',tk,[{label:'Revenue',data:tk.map(k=>T[k].v),backgroundColor:'#1f5fbf'},{label:'Cost',data:tk.map(k=>T[k].c),backgroundColor:'#9aa5b4'},{label:'Profit',data:tk.map(k=>T[k].v-T[k].c),backgroundColor:'#1f7a4d'}]);
+ mk('#c2','doughnut',['Deal','Tidak deal'],[{data:[D.length,L.length],backgroundColor:['#1f7a4d','#b3392f']}]);
+ const S=grp(r=>r.salesName||'-'),sk=Object.keys(S);mk('#c3','bar',sk,[{label:'Revenue',data:sk.map(k=>S[k].v),backgroundColor:'#1f5fbf'},{label:'Profit',data:sk.map(k=>S[k].v-S[k].c),backgroundColor:'#1f7a4d'}],{indexAxis:'y'});
+ const M=grp(r=>r.moda),mo=Object.keys(M);mk('#c4','doughnut',mo,[{data:mo.map(k=>M[k].v),backgroundColor:['#1f5fbf','#12305c','#7aa7e6']}])}
+
 (async()=>{if(user&&token)await load();render()})();
-setInterval(async()=>{const t=document.activeElement&&document.activeElement.tagName;if(!user||!token||['INPUT','TEXTAREA','SELECT'].includes(t))return;await load();render()},30000);
+setInterval(async()=>{const t=document.activeElement&&document.activeElement.tagName;if(!user||!token||$('#dlg').open||['INPUT','TEXTAREA','SELECT'].includes(t))return;await load();render()},30000);
 </script>
 </body>
 </html>
