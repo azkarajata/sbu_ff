@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Freight Forwarder – InJourney Aviation Services</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#12305c;--blue:#1f5fbf;--blue-l:#e8f0fb;--ink:#2b3036;--gray:#5b6470;--gray-l:#f2f4f7;--line:#dde2e9;--white:#fff;--ok:#1f7a4d;--warn:#a86a00;--bad:#b3392f}
+*{box-sizing:border-box}
+body{margin:0;font-family:Montserrat,system-ui,sans-serif;color:var(--ink);background:var(--gray-l);font-size:14px;display:flex;min-height:100vh}
+aside{width:250px;background:var(--white);border-right:1px solid var(--line);padding:24px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+aside img{width:100%;max-width:200px;margin:0 auto 20px;display:block}
+.nav{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:0;background:none;border-radius:8px;text-align:left;font:inherit;color:var(--gray);cursor:pointer}
+.nav b{font-weight:600;font-size:14px}.nav small{font-size:12px}
+.nav:hover{background:var(--gray-l)}
+.nav.on{background:var(--blue);color:#fff}
+.note{margin-top:auto;font-size:11px;color:var(--gray);line-height:1.5}
+main{flex:1;min-width:0;padding:28px 32px}
+h1{font-size:22px;margin:0 0 4px;color:var(--navy)}
+.sub{margin:0 0 22px;color:var(--gray)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;padding:12px 14px}
+.kpi span{font-size:12px;color:var(--gray)}.kpi strong{display:block;font-size:26px;color:var(--navy)}
+.panel{background:var(--white);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:20px}
+.panel h2{font-size:15px;margin:0 0 14px;color:var(--navy)}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--gray)}
+.wide{grid-column:1/-1}
+input,textarea,select{font:inherit;font-weight:400;color:var(--ink);padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+textarea{resize:vertical;min-height:70px}
+input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.btn{font:inherit;font-weight:600;padding:9px 16px;border-radius:6px;border:1px solid var(--blue);background:var(--blue);color:#fff;cursor:pointer;text-decoration:none;display:inline-block;font-size:13px}
+.btn:hover{background:var(--navy);border-color:var(--navy)}
+.btn.sec{background:#fff;color:var(--blue)}.btn.sec:hover{background:var(--blue-l);border-color:var(--blue)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.tools{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}.tools input,.tools select{min-width:180px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th{text-align:left;font-size:12px;color:var(--gray);font-weight:600;padding:9px 10px;border-bottom:2px solid var(--line);background:var(--gray-l)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+td small{color:var(--gray)}
+.act{display:flex;gap:6px;flex-wrap:wrap}
+.tag{display:inline-block;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.s1{background:#fff3dc;color:var(--warn)}.s2{background:var(--blue-l);color:var(--blue)}.s3{background:#e1f3ea;color:var(--ok)}.s4{background:#f9e5e3;color:var(--bad)}
+.empty{padding:28px;text-align:center;color:var(--gray)}
+#toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:11px 16px;border-radius:8px;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none}
+#toast.show{opacity:1;transform:none}
+.login{margin:auto;width:100%;max-width:380px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:28px}
+.login img{width:200px;display:block;margin:0 auto 22px}.login form{grid-template-columns:1fr}.login h1{font-size:18px;text-align:center}
+.err{color:var(--bad);font-size:12px;min-height:16px;margin:0}.hint{font-size:11px;color:var(--gray);line-height:1.5;margin:12px 0 0}
+.me{background:var(--blue-l);border-radius:8px;padding:10px 12px;margin-bottom:10px}.me small{color:var(--gray);display:block}.me b{color:var(--navy)}
+.nav.on{cursor:default}.btn.on{background:var(--navy);border-color:var(--navy);color:#fff}
+@media(max-width:820px){body{flex-direction:column}aside{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px}aside img{width:130px;margin:0 12px 0 0}.nav small,.note{display:none}main{padding:18px 14px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<aside id="side"></aside>
+<main id="app"></main>
+<div id="toast" role="status"></div>
+<script>
+const MAX=1.4*1024*1024;
+const USERS={sales:{name:'Tim Sales',role:'sales',desc:'Kirim RFQ & unduh job sheet'},operation:{name:'Tim Operation',role:'ops',desc:'Upload job sheet cost'},projectcontrol:{name:'Tim Project Control',role:'pc',desc:'Monitoring semua RFQ'}};
+const MODA=['Air Freight','Sea Freight','Trucking'],TERM=['Door to Door','Door to Port','Port to Door','Port to Port'];
+let db=[],user=sessionStorage.getItem('ias_user'),token=sessionStorage.getItem('ias_token'),q='',fs='';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=t=>new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+async function api(path,o={}){const h={...(o.headers||{})};if(token)h.Authorization='Bearer '+token;let body=o.body;
+ if(o.json!==undefined){h['Content-Type']='application/json';body=JSON.stringify(o.json)}
+ let r;try{r=await fetch('/api/'+path,{method:o.method||'GET',headers:h,body})}catch(e){throw new Error('Tidak bisa terhubung ke server.')}
+ if(!r.ok){let m='Terjadi kesalahan ('+r.status+').';try{m=(await r.json()).error||m}catch(e){}
+  if(r.status===401&&token){logout();}throw new Error(m)}return r}
+async function load(){try{db=await(await api('rfqs')).json()}catch(e){toast(e.message)}}
+function logout(){sessionStorage.removeItem('ias_user');sessionStorage.removeItem('ias_token');user=null;token=null;db=[];render()}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
+const role=()=>USERS[user].role;
+const jsTag=r=>r.file?'<span class="tag s2">Job Sheet Selesai</span>':'<span class="tag s1">Menunggu Job Sheet</span>';
+const ocTag=r=>r.outcome==='deal'?' <span class="tag s3">Deal</span>':r.outcome==='lost'?' <span class="tag s4">Tidak deal</span>':'';
+const rfqCell=r=>`<b>${esc(r.rfq)}</b><br><small>${fmt(r.created)}</small>`;
+const routeCell=r=>`${esc(r.pol)} → ${esc(r.pod)}`;
+const modaCell=r=>`${esc(r.moda)}<br><small>${esc(r.term)}</small>`;
+const head=(t,s)=>`<h1>${t}</h1><p class="sub">${s}</p>`;
+function kpis(){const c=f=>db.filter(f).length,o=role()!=='ops';
+ const k=[['Total RFQ',db.length],['Menunggu Job Sheet',c(r=>!r.file)],['Job Sheet Selesai',c(r=>r.file)]];
+ if(o)k.push(['Deal',c(r=>r.outcome==='deal')],['Tidak deal',c(r=>r.outcome==='lost')]);
+ return `<div class="kpis">${k.map(([l,n])=>`<div class="kpi"><span>${l}</span><strong>${n}</strong></div>`).join('')}</div>`}
+function filtered(){return db.filter(r=>(!fs||(fs==='w'?!r.file:fs==='d'?r.file:r.outcome===fs))&&(!q||[r.rfq,r.company,r.pol,r.pod,r.desc,r.moda,r.term].join(' ').toLowerCase().includes(q.toLowerCase())))}
+function tools(){const o=[['w','Menunggu Job Sheet'],['d','Job Sheet Selesai']];if(role()!=='ops')o.push(['deal','Deal'],['lost','Tidak deal']);
+ return `<div class="tools"><input id="q" type="search" placeholder="Cari RFQ, perusahaan, POL/POD" value="${esc(q)}" aria-label="Cari"><select id="fs" aria-label="Filter status"><option value="">Semua status</option>${o.map(([k,v])=>`<option value="${k}" ${fs===k?'selected':''}>${v}</option>`).join('')}</select></div>`}
+function bindTools(){const a=$('#q'),b=$('#fs');if(!a)return;a.oninput=e=>{q=e.target.value;const p=e.target.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(p,p)};b.onchange=e=>{fs=e.target.value;render()}}
+const dl=r=>r.file?`<button class="btn sm" data-dl="${r.id}">Unduh job sheet</button>`:'';
+const TH=l=>`<table><thead><tr>${l.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
+const opts=a=>a.map(x=>`<option>${x}</option>`).join('');
+
+function sales(){
+ const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${ocTag(r)}${r.file?`<br><small>Job sheet: ${fmt(r.costAt)}</small>`:''}</td><td><div class="act">${dl(r)}${r.file?`<button class="btn sec sm ${r.outcome==='deal'?'on':''}" data-a="deal" data-id="${r.id}">Deal</button><button class="btn sec sm ${r.outcome==='lost'?'on':''}" data-a="lost" data-id="${r.id}">Tidak deal</button>`:''}</div></td></tr>`).join('');
+ return head('Dashboard Sales','Kirim permintaan cost ke Operation, lalu unduh job sheet yang sudah dihitung.')+kpis()+
+ `<div class="panel"><h2>Kirim RFQ baru ke Operation</h2><form id="f">
+ <label>Nomor RFQ<input name="rfq" required placeholder="mis. RFQ-2026-001"></label>
+ <label>Nama perusahaan<input name="company" required></label>
+ <label>Moda<select name="moda" required><option value="">Pilih moda</option>${opts(MODA)}</select></label>
+ <label>Layanan pengiriman<select name="term" required><option value="">Pilih layanan</option>${opts(TERM)}</select></label>
+ <label>POL (Port of Loading)<input name="pol" required placeholder="mis. Jakarta (CGK)"></label>
+ <label>POD (Port of Discharge)<input name="pod" required placeholder="mis. Singapore (SIN)"></label>
+ <label class="wide">Deskripsi barang<textarea name="desc" required placeholder="Jenis barang, berat, volume, kemasan, incoterm"></textarea></label>
+ <div class="wide"><button class="btn" type="submit">Kirim ke Operation</button></div></form></div>
+ <div class="panel"><h2>Daftar RFQ</h2>${tools()}<div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Aksi'])+rows+'</tbody></table>':'<div class="empty">Belum ada RFQ. Isi formulir di atas untuk mengirim permintaan cost pertama.</div>'}</div></div>`}
+
+function ops(){
+ const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${r.file?`<br><small>${esc(r.file.name)}</small>`:''}</td><td><div class="act"><label class="btn sm ${r.file?'sec':''}" style="cursor:pointer;flex-direction:row">${r.file?'Ganti file':'Upload job sheet'}<input type="file" hidden accept=".pdf,.xls,.xlsx,.xlsm" data-up="${r.id}"></label>${dl(r)}</div></td></tr>`).join('');
+ return head('Dashboard Operation','Pilih RFQ dari Sales, hitung cost (HPP), lalu upload job sheet dalam format PDF atau Excel.')+kpis()+
+ `<div class="panel"><h2>Permintaan cost dari Sales</h2>${tools()}<div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Aksi'])+rows+'</tbody></table>':'<div class="empty">Belum ada permintaan dari Sales.</div>'}</div></div>`}
+
+function pc(){
+ const rows=filtered().map(r=>`<tr><td>${rfqCell(r)}</td><td>${esc(r.company)}</td><td>${routeCell(r)}</td><td>${modaCell(r)}</td><td>${esc(r.desc)}</td><td>${jsTag(r)}${ocTag(r)}</td><td>${r.file?`${esc(r.file.name)}<br><small>${fmt(r.costAt)}</small>`:'<small>Belum ada</small>'}</td></tr>`).join('');
+ return head('Dashboard Project Control','Pantau seluruh RFQ dari permintaan cost sampai keputusan customer.')+kpis()+
+ `<div class="panel"><h2>Semua RFQ</h2>${tools()}<div class="tools"><button class="btn sec sm" id="csv">Ekspor CSV</button></div><div class="tw">${rows?TH(['RFQ','Perusahaan','Rute','Moda / Layanan','Barang','Status','Job sheet'])+rows+'</tbody></table>':'<div class="empty">Tidak ada data yang cocok.</div>'}</div></div>`}
+
+function loginView(){
+ $('#side').style.display='none';
+ $('#app').innerHTML=`<div class="login"><img src="ias_logo.png" alt="InJourney Aviation Services"><h1>Masuk ke dashboard</h1><form id="lf"><label>Username<input name="u" required autocomplete="username" autofocus></label><label>Password<input name="p" type="password" required autocomplete="current-password"></label><p class="err" id="err"></p><button class="btn" type="submit">Masuk</button></form><p class="hint">Username: sales, operation, atau projectcontrol.</p></div>`;
+ $('#lf').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target)),u=d.u.trim().toLowerCase();
+  try{const r=await(await api('login',{method:'POST',json:{u,p:d.p}})).json();user=r.user;token=r.token;sessionStorage.setItem('ias_user',user);sessionStorage.setItem('ias_token',token);q='';fs='';await load();render()}catch(err){$('#err').textContent=err.message}}}
+
+function render(){
+ if(!user||!USERS[user]){user=null;return loginView()}
+ const U=USERS[user],sd=$('#side');sd.style.display='';
+ sd.innerHTML=`<img src="ias_logo.png" alt="InJourney Aviation Services"><div class="me"><small>Masuk sebagai</small><b>${U.name}</b></div><div class="nav on"><b>${U.name.replace('Tim ','')}</b><small>${U.desc}</small></div><button class="btn sec sm" id="rl" style="margin-top:8px">Muat ulang data</button><button class="btn sec sm" id="out" style="margin-top:8px">Keluar</button><p class="note">Data tersimpan di database Cloudflare D1 dan dipakai bersama semua unit.</p>`;
+ $('#out').onclick=logout;
+ $('#rl').onclick=async()=>{await load();render();toast('Data dimuat ulang.')};
+ $('#app').innerHTML={sales,ops,pc}[U.role]();
+ bindTools();
+ const f=$('#f');if(f)f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));d.rfq=d.rfq.trim();
+  try{await api('rfqs',{method:'POST',json:d});toast('RFQ terkirim ke Operation.');await load();render()}catch(err){toast(err.message)}};
+ document.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{const r=db.find(x=>x.id===b.dataset.id),o=r.outcome===b.dataset.a?null:b.dataset.a;
+  try{await api('rfqs/'+r.id,{method:'PATCH',json:{outcome:o}});toast(o?'Keputusan customer disimpan.':'Keputusan customer dibatalkan.');await load();render()}catch(err){toast(err.message)}});
+ document.querySelectorAll('[data-up]').forEach(i=>i.onchange=async()=>{const file=i.files[0];if(!file)return;
+  if(!/\.(pdf|xlsx?|xlsm)$/i.test(file.name))return toast('Format harus PDF atau Excel.');
+  if(file.size>MAX)return toast('Ukuran file maksimal 1,4 MB.');
+  try{toast('Mengunggah...');await api('rfqs/'+i.dataset.up+'/file',{method:'PUT',headers:{'X-Filename':encodeURIComponent(file.name),'Content-Type':file.type||'application/octet-stream'},body:file});
+   toast('Job sheet terunggah. Sales bisa mengunduhnya.');await load();render()}catch(err){toast(err.message)}});
+ document.querySelectorAll('[data-dl]').forEach(b=>b.onclick=async()=>{const r=db.find(x=>x.id===b.dataset.dl);
+  try{const blob=await(await api('rfqs/'+r.id+'/file')).blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=r.file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}catch(err){toast(err.message)}});
+ const c=$('#csv');if(c)c.onclick=()=>{const h=['RFQ','Perusahaan','POL','POD','Moda','Layanan','Barang','Status Job Sheet','Keputusan Customer','File Job Sheet','Dibuat'];
+  const l=[h,...filtered().map(r=>[r.rfq,r.company,r.pol,r.pod,r.moda,r.term,r.desc,r.file?'Job Sheet Selesai':'Menunggu Job Sheet',r.outcome==='deal'?'Deal':r.outcome==='lost'?'Tidak deal':'',r.file?r.file.name:'',new Date(r.created).toISOString()])].map(a=>a.map(v=>`"${String(v).replace(/"/g,'""').replace(/^([=+\-@])/,"'$1")}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+l],{type:'text/csv'}));a.download='rfq-monitoring.csv';a.click()};
+}
+(async()=>{if(user&&token)await load();render()})();
+setInterval(async()=>{const t=document.activeElement&&document.activeElement.tagName;if(!user||!token||['INPUT','TEXTAREA','SELECT'].includes(t))return;await load();render()},30000);
+</script>
+</body>
+</html>
