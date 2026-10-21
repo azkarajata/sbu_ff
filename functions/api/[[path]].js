@@ -9,7 +9,7 @@ const USERS = {
 };
 const MODA = ['Air Freight', 'Sea Freight', 'Trucking'];
 const TERM = ['Door to Door', 'Door to Port', 'Port to Door', 'Port to Port'];
-const MAX_FILE = 1.4 * 1024 * 1024; // batas baris D1 = 2 MB (base64 +33%)
+const MAX_B64 = 1.9 * 1000 * 1000; // batas baris D1 = 2 MB; setara file asli ±1,4 MB
 const TOKEN_TTL = 12 * 60 * 60 * 1000;
 const enc = new TextEncoder();
 
@@ -51,13 +51,6 @@ async function safeEqual(a, b) {
 }
 
 // ---------- util ----------
-function toBase64(buf) {
-  const bytes = new Uint8Array(buf);
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-const fromBase64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 const clean = (v, max) => String(v ?? '').trim().slice(0, max);
 
 const rowOut = (r) => ({
@@ -135,28 +128,28 @@ export async function onRequest({ request, env, params }) {
   }
 
   // PUT /api/rfqs/:id/file  -> upload job sheet (Operation)
+  // Body JSON: { name, mime, data(base64) }. Konversi base64 dilakukan di browser
+  // supaya tidak memakan waktu CPU Worker (batas paket gratis sangat kecil).
   if (path[2] === 'file' && method === 'PUT') {
     if (role !== 'ops') return fail('Hanya Operation yang bisa upload job sheet.', 403);
-    const name = clean(decodeURIComponent(request.headers.get('X-Filename') || ''), 200);
+    const b = await request.json().catch(() => null);
+    if (!b || typeof b.data !== 'string' || !b.data) return fail('File kosong atau format tidak valid.');
+    const name = clean(b.name, 200);
     if (!/\.(pdf|xlsx?|xlsm)$/i.test(name)) return fail('Format harus PDF atau Excel.');
-    const buf = await request.arrayBuffer();
-    if (!buf.byteLength) return fail('File kosong.');
-    if (buf.byteLength > MAX_FILE) return fail('Ukuran file maksimal 1,4 MB.', 413);
-    const mime = request.headers.get('Content-Type') || 'application/octet-stream';
+    if (b.data.length > MAX_B64) return fail('Ukuran file maksimal 1,4 MB.', 413);
+    const mime = clean(b.mime, 100) || 'application/octet-stream';
     await env.DB.batch([
-      env.DB.prepare('INSERT OR REPLACE INTO files (rfq_id,mime,data) VALUES (?,?,?)').bind(id, mime, toBase64(buf)),
+      env.DB.prepare('INSERT OR REPLACE INTO files (rfq_id,mime,data) VALUES (?,?,?)').bind(id, mime, b.data),
       env.DB.prepare('UPDATE rfqs SET file_name=?, cost_at=? WHERE id=?').bind(name, Date.now(), id),
     ]);
     return json({ ok: true });
   }
 
-  // GET /api/rfqs/:id/file  -> unduh job sheet
+  // GET /api/rfqs/:id/file  -> unduh job sheet (dikirim sebagai base64, didecode di browser)
   if (path[2] === 'file' && method === 'GET') {
     const f = await env.DB.prepare('SELECT mime,data FROM files WHERE rfq_id=?').bind(id).first();
     if (!f) return fail('Job sheet belum ada.', 404);
-    return new Response(fromBase64(f.data), {
-      headers: { 'Content-Type': f.mime, 'Cache-Control': 'no-store' },
-    });
+    return json({ mime: f.mime, data: f.data });
   }
 
   return fail('Metode tidak didukung.', 405);
