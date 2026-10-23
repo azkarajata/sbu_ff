@@ -118,6 +118,12 @@ main.lg{padding:0}.lw{display:grid;grid-template-columns:minmax(340px,480px) 1fr
 .drop{margin-top:8px;border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;background:var(--gray-l)}.fi{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;margin:8px 0;padding:6px 10px;background:var(--white);border:1px solid var(--line);border-radius:8px}
 .fb{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:16px}.nw{white-space:nowrap}
 @media(max-width:700px){.fg{grid-template-columns:1fr}}
+
+[data-theme=dark]{--gray-l:#101d34;--white:#182b4a;--line:#2e4368;--blue-l:#21406e;--ok:#4ade80;--bad:#f87171}
+[data-theme=dark] aside{background:#0b172c;border-color:#2e4368}
+[data-theme=dark] aside img{background:none;padding:0;border-radius:0;filter:invert(1) hue-rotate(180deg) brightness(1.15)}
+.drop{display:flex;flex-direction:column;align-items:center;gap:10px}.drop #fl{width:100%}.drop .fi{width:100%}
+.fg .drop label{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;width:auto;padding:9px 28px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -193,7 +199,7 @@ function bindList(){document.querySelectorAll('[data-t]').forEach(b=>b.onclick=(
 
 // ---- Sales ----
 function vSales(){const ds=db.filter(r=>r.outcome==='deal'),dn=ds.filter(r=>r.revenue!=null),ls=db.filter(r=>r.outcome==='lost'),wr=ds.length+ls.length?Math.round(ds.length/(ds.length+ls.length)*100)+'%':'-',rev=dn.reduce((a,r)=>a+r.revenue,0),pr=dn.reduce((a,r)=>a+r.revenue-r.cost,0);
- listView('Dashboard Sales','Kirim RFQ, kirim quotation, dan catat hasil deal.',[['RFQ aktif',db.filter(open_).length],['Perlu tindakan saya',db.filter(r=>stage(r).need==='sales').length],['Win rate',wr],['Total Revenue',IDR(rev),dn.length+' deal · Profit '+IDR(pr)]],'','<button class="btn" id="add">+ Tambah RFQ</button>');
+ listView('Dashboard Sales','Kirim RFQ, kirim quotation, dan catat hasil deal.',[['RFQ aktif',db.filter(open_).length],['Perlu tindakan saya',db.filter(r=>stage(r).need==='sales').length],['Win rate',wr],['Total Revenue',IDR(rev),dn.length+' deal · Profit <b class="'+(pr<0?'dn':'up')+'" style="font-size:inherit">'+IDR(pr)+'</b>']],'','<button class="btn" id="add">+ Tambah RFQ</button>');
  $('#add').onclick=openAdd}
 let AF=[];const AX=/\.(pdf|png|jpe?g|docx|xlsx|csv|txt)$/i,b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>no(new Error('Gagal membaca '+f.name));r.readAsDataURL(f)});
 function openAdd(){AF=[];const d=$('#dlg'),opt=a=>a.map(m=>`<option>${m}</option>`).join('');
