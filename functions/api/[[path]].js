@@ -207,5 +207,29 @@ export async function onRequest({ request, env, params }) {
     return json({ mime: f.mime, data: f.data });
   }
 
+  // Lampiran pendukung RFQ (maks 10 file, 1 MB per file)
+  if (path[2] === 'attach') {
+    if (method === 'GET' && !path[3]) {
+      const { results } = await env.DB.prepare('SELECT id,name,size FROM attachments WHERE rfq_id=? ORDER BY id').bind(id).all();
+      return json(results);
+    }
+    if (method === 'GET') {
+      const f = await env.DB.prepare('SELECT mime,data FROM attachments WHERE id=? AND rfq_id=?').bind(path[3], id).first();
+      return f ? json(f) : fail('Lampiran tidak ditemukan.', 404);
+    }
+    if (method === 'POST') {
+      if (role !== 'sales') return fail('Hanya Sales yang bisa menambah lampiran.', 403);
+      const b = await request.json().catch(() => null), name = clean(b && b.name, 200);
+      if (!b || typeof b.data !== 'string' || !b.data) return fail('File kosong.');
+      if (!/\.(pdf|png|jpe?g|docx|xlsx|csv|txt)$/i.test(name)) return fail('Format lampiran tidak didukung.');
+      if (b.data.length > 1.4e6) return fail('Ukuran lampiran maksimal 1 MB.', 413);
+      const c = await env.DB.prepare('SELECT COUNT(*) n FROM attachments WHERE rfq_id=?').bind(id).first();
+      if (c.n >= 10) return fail('Maksimal 10 lampiran per RFQ.');
+      await env.DB.prepare('INSERT INTO attachments (rfq_id,name,mime,size,data,at) VALUES (?,?,?,?,?,?)')
+        .bind(id, name, clean(b.mime, 100) || 'application/octet-stream', Math.round(b.data.length * 3 / 4), b.data, Date.now()).run();
+      return json({ ok: true }, 201);
+    }
+  }
+
   return fail('Metode tidak didukung.', 405);
 }
