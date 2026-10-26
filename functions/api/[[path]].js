@@ -61,6 +61,9 @@ const rowOut = (r, role) => ({
   decidedAt: r.decided_at, lostReason: r.lost_reason, waiting: !!r.waiting,
   cost: role === 'ops' ? null : r.cost, revenue: role === 'ops' ? null : r.revenue, // Operation tidak melihat keuangan
   salesFile: role !== 'ops' && r.sales_file_name ? { name: r.sales_file_name } : null,
+  // pesan/dokumen baru dari unit lawan sejak terakhir dibuka
+  unread: role === 'sales' ? (r.ln_ops || 0) > (r.sales_seen || 0)
+        : role === 'ops' ? Math.max(r.ln_sales || 0, r.ln_att || 0) > (r.ops_seen || 0) : false,
 });
 
 // ---------- handler ----------
@@ -91,7 +94,12 @@ export async function onRequest({ request, env, params }) {
 
   // GET /api/rfqs
   if (path.length === 1 && method === 'GET') {
-    const { results } = await env.DB.prepare('SELECT * FROM rfqs ORDER BY created DESC').all();
+    const { results } = await env.DB.prepare(
+      `SELECT r.*,
+        (SELECT MAX(at) FROM notes n WHERE n.rfq_id=r.id AND n.role='ops') AS ln_ops,
+        (SELECT MAX(at) FROM notes n WHERE n.rfq_id=r.id AND n.role='sales') AS ln_sales,
+        (SELECT MAX(at) FROM attachments a WHERE a.rfq_id=r.id) AS ln_att
+       FROM rfqs r ORDER BY r.created DESC`).all();
     return json(results.map((r) => rowOut(r, role)));
   }
 
@@ -130,6 +138,7 @@ export async function onRequest({ request, env, params }) {
       const n = clean(b.name, 60); if (!n) return fail('Nama PIC wajib diisi.');
       st = q('UPDATE rfqs SET ops_name=?, taken_at=COALESCE(taken_at,?), waiting=0 WHERE id=?', n, now);
     } else if (A === 'waiting' && role !== 'pc') st = q('UPDATE rfqs SET waiting=? WHERE id=?', b.on ? 1 : 0);
+    else if (A === 'seen' && role !== 'pc') st = q(role === 'sales' ? 'UPDATE rfqs SET sales_seen=? WHERE id=?' : 'UPDATE rfqs SET ops_seen=? WHERE id=?', now);
     else if (A === 'quote' && role === 'sales') st = q('UPDATE rfqs SET quote_at=COALESCE(quote_at,?) WHERE id=?', now);
     else if (A === 'deal' && role === 'sales') {
       const c = Number(b.cost), v = Number(b.revenue);
