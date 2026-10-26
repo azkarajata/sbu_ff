@@ -151,6 +151,7 @@ main.lg{padding:0}.lw{display:grid;grid-template-columns:minmax(340px,480px) 1fr
 .chipf{display:inline-flex;align-items:center;gap:6px;margin:6px 6px 0 0;padding:3px 6px 3px 12px;border:1px solid var(--line);border-radius:99px;font-size:12px;background:var(--gray-l)}.chipf button{border:0;background:none;color:var(--gray);cursor:pointer;font-size:12px}
 .btn.bigb{background:var(--gray-l);color:var(--navy);border:1px solid var(--line)}.btn.bigb:hover{border-color:var(--blue)}.btn.bigb.on{background:var(--blue);color:#fff;border-color:var(--blue)}.btn.bigb.on.lostb{background:#dc2626;border-color:#dc2626}
 .drop.miss{border-color:var(--bad);background:rgba(239,68,68,.08)}
+.sg small.pr{color:var(--blue);font-weight:700}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -255,8 +256,8 @@ async function openRfq(id){const r=db.find(x=>x.id===id),R=role(),s=stage(r),d=$
  try{notes=await(await api('rfqs/'+id+'/notes')).json()}catch(e){}try{atts=await(await api('rfqs/'+id+'/attach')).json()}catch(e){}
  if(r.unread){r.unread=false;api('rfqs/'+id,{method:'PATCH',json:{action:'seen'}}).then(()=>render()).catch(()=>{})}
  const sf=t=>t?new Date(t).toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Jakarta'}):'',
- stp=[['RFQ dikirim',r.created,r.salesName],['Dikerjakan',r.takenAt,r.opsName],['Job sheet',r.costAt],['Quotation',r.quoteAt],[r.outcome==='lost'?'Tidak deal':r.outcome==='deal'?'Deal':'Keputusan',r.decidedAt]],cu=stp.findIndex(x=>!x[1]),
- stepper=`<div class="stp">${stp.map((x,i)=>`<div class="sg ${x[1]?'dd':i===cu?'cn':''}"><i>${x[1]?'✓':i+1}</i><b>${x[0]}</b><small>${sf(x[1])}</small><small>${esc(x[2]||'')}</small></div>`).join('')}</div>`,
+ stp=[['RFQ dikirim',r.created,r.salesName,'Sales'],['Dikerjakan',r.takenAt,r.opsName,'Operation'],['Job sheet',r.costAt,r.opsName,'Operation'],['Quotation',r.quoteAt,r.salesName,'Sales'],[r.outcome==='lost'?'Tidak deal':r.outcome==='deal'?'Deal':'Keputusan',r.decidedAt,r.salesName,'Sales']],cu=stp.findIndex(x=>!x[1]),
+ stepper=`<div class="stp">${stp.map((x,i)=>`<div class="sg ${x[1]?'dd':i===cu?'cn':''}"><i>${x[1]?'✓':i+1}</i><b>${x[0]}</b><small class="${!x[1]&&i===cu?'pr':''}">${x[1]?sf(x[1]):i===cu?'Sedang diproses':''}</small><small>${esc(x[2]||(x[1]||i===cu?x[3]:''))}</small></div>`).join('')}</div>`,
  row=(k,v)=>`<div class="ir"><span>${k}</span><b>${v}</b></div>`,
  info=row('Rute',esc(r.pol)+' → '+esc(r.pod))+row('Moda',esc(r.moda)+' · '+esc(r.term))+row('Sales',esc(r.salesName||'-'))+row('Operation',esc(r.opsName||'-'))+row('Dikirim',fmt(r.created))+`<div class="ir"><span>Barang</span><b style="font-weight:500">${esc(r.desc)}</b></div>`,
  fb=(k,f,l)=>f?`<button class="fr" data-dlf="${id}|${k}|${esc(f.name)}"><span>📎 ${l}</span><small>${esc(f.name)}</small></button>`:'',
