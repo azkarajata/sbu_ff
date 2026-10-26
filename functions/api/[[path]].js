@@ -136,7 +136,7 @@ export async function onRequest({ request, env, params }) {
       if (b.cost === '' || b.revenue === '' || !(c >= 0) || !(v >= 0)) return fail('Cost dan revenue harus berupa angka.');
       st = q("UPDATE rfqs SET outcome='deal', decided_at=COALESCE(decided_at,?), cost=?, revenue=?, lost_reason=NULL WHERE id=?", now, c, v);
     } else if (A === 'lost' && role === 'sales') {
-      const r = clean(b.reason, 200); if (!r) return fail('Alasan tidak deal wajib diisi.');
+      const r = clean(b.reason, 500); if (!r) return fail('Alasan tidak deal wajib diisi.');
       st = q("UPDATE rfqs SET outcome='lost', decided_at=COALESCE(decided_at,?), lost_reason=? WHERE id=?", now, r);
     } else if (A === 'undo' && role === 'sales') st = q('UPDATE rfqs SET outcome=NULL, decided_at=NULL, lost_reason=NULL WHERE id=?');
     else return fail('Aksi tidak diizinkan untuk unit Anda.', 403);
