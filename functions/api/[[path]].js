@@ -143,6 +143,8 @@ export async function onRequest({ request, env, params }) {
     else if (A === 'deal' && role === 'sales') {
       const c = Number(b.cost), v = Number(b.revenue);
       if (b.cost === '' || b.revenue === '' || !(c >= 0) || !(v >= 0)) return fail('Cost dan revenue harus berupa angka.');
+      const cur = await env.DB.prepare('SELECT outcome, sales_file_name FROM rfqs WHERE id=?').bind(id).first();
+      if (cur.outcome !== 'deal' && !cur.sales_file_name) return fail('Upload job sheet sales terlebih dahulu sebelum menyimpan deal.');
       st = q("UPDATE rfqs SET outcome='deal', decided_at=COALESCE(decided_at,?), cost=?, revenue=?, lost_reason=NULL WHERE id=?", now, c, v);
     } else if (A === 'lost' && role === 'sales') {
       const r = clean(b.reason, 500); if (!r) return fail('Alasan tidak deal wajib diisi.');
