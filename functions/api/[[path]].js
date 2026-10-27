@@ -7,8 +7,8 @@ const USERS = {
   operation:      { role: 'ops',   passVar: 'PASS_OPERATION' },
   projectcontrol: { role: 'pc',    passVar: 'PASS_PROJECTCONTROL' },
 };
-const MODA = ['Air Freight', 'Sea Freight', 'Trucking'];
-const TERM = ['Door to Door', 'Door to Port', 'Port to Door', 'Port to Port'];
+const MODA = ['Forwarding', 'Kepabeanan', 'Trucking', 'Sea Freight']; // COA
+const TERM = ['Door to Door', 'Door to Port', 'Port to Door', 'Port to Port', 'Customs Clearance'];
 const MAX_B64 = 1.9 * 1000 * 1000; // batas baris D1 = 2 MB; setara file asli ±1,4 MB
 const TOKEN_TTL = 12 * 60 * 60 * 1000;
 const enc = new TextEncoder();
@@ -112,7 +112,7 @@ export async function onRequest({ request, env, params }) {
       pol: clean(b.pol, 80), pod: clean(b.pod, 80), desc: clean(b.desc, 2000), sales: clean(b.salesName, 60),
     };
     if (Object.values(d).some((v) => !v)) return fail('Semua kolom wajib diisi (termasuk nama Sales).');
-    if (!MODA.includes(d.moda) || !TERM.includes(d.term)) return fail('Moda/layanan tidak valid.');
+    if (!MODA.includes(d.moda) || !TERM.includes(d.term)) return fail('COA/layanan tidak valid.');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     try {
       await env.DB.prepare(
